@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # required for npm trusted publishing (OIDC) and --provenance
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run build
+
+      - run: pnpm exec tsc --noEmit
+
+      - run: pnpm exec node --test --experimental-transform-types "tests/*.test.ts"
+
+      # trusted publishing needs npm >= 11.5.1
+      - run: npm install -g npm@latest
+
+      # prerelease versions (0.1.0-alpha.0) go to the `alpha` dist-tag, leaving
+      # `latest` pointing only at stable releases
+      - run: |
+          TAG=$(node -p "require('./build/package.json').version.includes('-') ? 'alpha' : 'latest'")
+          npm publish ./build --provenance --access public --tag "$TAG"

@@ -1,0 +1,47 @@
+{
+  "name": "controlla-unplugin",
+  "version": "0.1.0",
+  "description": "Rewrites controlla's proxy-backed control scopes into direct calls at build time",
+  "author": "Andrii Dubetskyi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Krombik/controlla-unplugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Krombik/controlla-unplugin/issues"
+  },
+  "homepage": "https://github.com/Krombik/controlla-unplugin#readme",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "node --test --experimental-transform-types --no-warnings \"tests/*.test.ts\"",
+    "release": "tsdown && npm publish ./build"
+  },
+  "keywords": [
+    "unplugin",
+    "vite",
+    "metro",
+    "react-native",
+    "controlla",
+    "proxy"
+  ],
+  "dependencies": {
+    "magic-string": "^0.30.17",
+    "unplugin": "^2.3.5"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "prettier": "^3.9.5",
+    "tsdown": "^0.22.8",
+    "typescript": "^5.9.2",
+    "unrun": "^0.3.1"
+  },
+  "sideEffects": false
+}

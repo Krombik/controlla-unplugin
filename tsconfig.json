@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "module": "preserve",
+    "target": "es2021",
+    "lib": ["esnext"],
+    "moduleResolution": "bundler",
+    "sourceMap": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "declaration": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["src", "tests", "tsdown.config.ts"],
+  "exclude": ["node_modules"]
+}
