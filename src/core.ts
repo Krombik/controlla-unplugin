@@ -11,6 +11,13 @@ const BRAND = '__@CONTROL_BRAND@';
 /** The flag `createScope` reads, and what it has to be for `a` to exist. */
 export const FLAG = '__CONTROLLA_PROXYLESS__';
 
+/**
+ * A route is a control too - of whether it's matched - but the routes under it
+ * are plain properties of the tree, put there one by one. Nothing below one was
+ * ever a proxy, so nothing below one is a call.
+ */
+const PAGE_BRAND = '__@IS_PAGE_BRAND@';
+
 /** The method a proxyless scope answers property access with. */
 const METHOD = 'a';
 
@@ -25,13 +32,19 @@ export type Warn = (node: ts.Node, message: string) => void;
 const isBranded = (type: ts.Type) => {
   const properties = type.getProperties();
 
+  let branded = false;
+
   for (let i = 0; i < properties.length; i++) {
-    if ((properties[i].escapedName as string).startsWith(BRAND)) {
-      return true;
+    const name = properties[i].escapedName as string;
+
+    if (name.startsWith(PAGE_BRAND)) {
+      return false;
     }
+
+    branded ||= name.startsWith(BRAND);
   }
 
-  return false;
+  return branded;
 };
 
 /**

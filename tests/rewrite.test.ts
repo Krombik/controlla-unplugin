@@ -30,12 +30,23 @@ export declare const $anything: any;
 export declare const index: number;
 export declare function getUser(): Scope<User>;
 export declare const form: { values: Scope<User> };
+
+// a route is a control of whether it is matched, and the routes under it are
+// plain properties - the one branded shape whose children were never a proxy
+declare const IS_PAGE_BRAND: unique symbol;
+
+type Page<Children = {}> = Control<boolean> & {
+  [IS_PAGE_BRAND]: true;
+} & Children;
+
+export declare const routes: Page<{ home: Page; hotel: Page<{ room: Page }> }>;
+export declare function selectParams(route: Page<any>): Scope<User>;
 export declare const controls: Scope<User>[];
 export declare function use(value: unknown): void;
 `;
 
 const HEAD =
-  `import { $user, $maybe, plain, anything, $anything, index, getUser, form, controls, use } from './stub';\n` +
+  `import { $user, $maybe, plain, anything, $anything, index, getUser, form, controls, use, routes, selectParams } from './stub';\n` +
   `import type { Scope, User } from './stub';\n`;
 
 const base = ts.createCompilerHost({});
@@ -253,4 +264,15 @@ test('a file with no control access is left untouched', () => {
   const { code } = run(`const name = plain.contact.name;`);
 
   assert.equal(code.trim(), `const name = plain.contact.name;`);
+});
+
+test('a route is a control, but the routes under it are not calls', () => {
+  equal(
+    `const $matched = routes.hotel.room;`,
+    `const $matched = routes.hotel.room;`
+  );
+  equal(
+    `const $name = selectParams(routes.hotel).contact.name;`,
+    `const $name = selectParams(routes.hotel).a('contact').a('name');`
+  );
 });
