@@ -147,6 +147,20 @@ const pathOf = (
   return null;
 };
 
+const REST =
+  'a rest element needs every key up front, and only the proxy knew them';
+
+/** What the assignment is a part of, parens aside. */
+const statementOf = (node: ts.Node) => {
+  let parent = node.parent;
+
+  while (parent && ts.isParenthesizedExpression(parent)) {
+    parent = parent.parent;
+  }
+
+  return parent;
+};
+
 /**
  * Flattens a binding pattern into `name = <path>` pairs. `false` where the
  * pattern asks for something no path can answer, having said which.
@@ -169,10 +183,7 @@ const collect = (
     }
 
     if (element.dotDotDotToken) {
-      warn(
-        element,
-        'a rest element needs every key up front, and only the proxy knew them'
-      );
+      warn(element, REST);
 
       return false;
     }
@@ -233,6 +244,134 @@ const warnUntyped = (
       `${text} is ${checker.typeToString(type)} here, so nothing under it is rewritten - give it a type`
     );
   }
+};
+
+/**
+ * One target of an assignment pattern: a name, somewhere to put it, or another
+ * pattern. A default is dropped - every path of a control is there.
+ */
+const assignmentTarget = (
+  node: ts.Expression,
+  base: string,
+  out: string[],
+  warn: Warn
+): boolean => {
+  const target =
+    ts.isBinaryExpression(node) &&
+    node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+      ? node.left
+      : node;
+
+  if (
+    ts.isObjectLiteralExpression(target) ||
+    ts.isArrayLiteralExpression(target)
+  ) {
+    return collectAssignment(target, base, out, warn);
+  }
+
+  if (
+    ts.isIdentifier(target) ||
+    ts.isPropertyAccessExpression(target) ||
+    ts.isElementAccessExpression(target)
+  ) {
+    out.push(`${target.getText()} = ${base}`);
+
+    return true;
+  }
+
+  warn(target, 'nothing a control path can be assigned to');
+
+  return false;
+};
+
+/**
+ * The same flattening {@link collect} does, over the object literal TypeScript
+ * parses the left of an assignment as - `({ name } = $user)` is a pattern only
+ * by position, and carries none of a binding's nodes.
+ */
+const collectAssignment = (
+  pattern: ts.ObjectLiteralExpression | ts.ArrayLiteralExpression,
+  base: string,
+  out: string[],
+  warn: Warn
+): boolean => {
+  if (ts.isArrayLiteralExpression(pattern)) {
+    const elements = pattern.elements;
+
+    for (let i = 0; i < elements.length; i++) {
+      const element = elements[i];
+
+      if (ts.isOmittedExpression(element)) {
+        continue;
+      }
+
+      if (ts.isSpreadElement(element)) {
+        warn(element, REST);
+
+        return false;
+      }
+
+      if (!assignmentTarget(element, `${base}.${METHOD}('${i}')`, out, warn)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  const properties = pattern.properties;
+
+  for (let i = 0; i < properties.length; i++) {
+    const property = properties[i];
+
+    if (ts.isShorthandPropertyAssignment(property)) {
+      const name = property.name.text;
+
+      out.push(`${name} = ${base}.${METHOD}('${name}')`);
+
+      continue;
+    }
+
+    if (!ts.isPropertyAssignment(property)) {
+      warn(
+        property,
+        ts.isSpreadAssignment(property)
+          ? REST
+          : 'unsupported entry in a control pattern'
+      );
+
+      return false;
+    }
+
+    const name = property.name;
+
+    let key: string;
+
+    if (ts.isComputedPropertyName(name)) {
+      key = keyOf(name.expression);
+    } else if (ts.isIdentifier(name) || ts.isStringLiteral(name)) {
+      key = `'${name.text}'`;
+    } else if (ts.isNumericLiteral(name)) {
+      key = `'${Number(name.text)}'`;
+    } else {
+      warn(property, 'unsupported key in a control pattern');
+
+      return false;
+    }
+
+    if (
+      !assignmentTarget(
+        property.initializer,
+        `${base}.${METHOD}(${key})`,
+        out,
+        warn
+      )
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 };
 
 /** Every `name = <path>` a pattern asks for, or `null` if it asks for a rest. */
@@ -354,6 +493,58 @@ export const rewrite = (
     return true;
   };
 
+  /** `({ name } = $user)` - only as a statement, where the value is dropped. */
+  const assignment = (node: ts.ExpressionStatement) => {
+    let expression: ts.Expression = node.expression;
+
+    while (ts.isParenthesizedExpression(expression)) {
+      expression = expression.expression;
+    }
+
+    if (
+      !ts.isBinaryExpression(expression) ||
+      expression.operatorToken.kind !== ts.SyntaxKind.EqualsToken
+    ) {
+      return false;
+    }
+
+    const left = expression.left;
+
+    if (
+      (!ts.isObjectLiteralExpression(left) &&
+        !ts.isArrayLiteralExpression(left)) ||
+      !isControl(checker, expression.right)
+    ) {
+      return false;
+    }
+
+    const base = pathOf(checker, expression.right);
+
+    if (base === null) {
+      warn(
+        node,
+        'assigning into a pattern needs a plain path on the right - name the value first'
+      );
+
+      return false;
+    }
+
+    const out: string[] = [];
+
+    if (!collectAssignment(left, base, out, warn) || !out.length) {
+      return false;
+    }
+
+    // the parens go with it: a lone `name = ...` needs none
+    string().overwrite(
+      node.expression.getStart(file),
+      node.expression.end,
+      out.join(', ')
+    );
+
+    return true;
+  };
+
   const visit = (node: ts.Node) => {
     if (spent.has(node)) {
       return;
@@ -403,15 +594,23 @@ export const rewrite = (
           );
         }
       }
+    } else if (ts.isExpressionStatement(node)) {
+      if (assignment(node)) {
+        return;
+      }
     } else if (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-      ts.isObjectLiteralExpression(node.left) &&
-      isControl(checker, node.right)
+      (ts.isObjectLiteralExpression(node.left) ||
+        ts.isArrayLiteralExpression(node.left)) &&
+      isControl(checker, node.right) &&
+      !ts.isExpressionStatement(statementOf(node))
     ) {
+      // as an expression it answers with the right side, which the bindings
+      // this would become do not
       warn(
         node,
-        'assigning into a pattern reads keys the proxy knew - destructure it with const instead'
+        'a pattern assigned mid-expression keeps the value of the right side - give it a statement of its own'
       );
     } else if (
       ts.isPropertyAccessExpression(node) &&

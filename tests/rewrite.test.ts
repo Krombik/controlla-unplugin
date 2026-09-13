@@ -198,11 +198,42 @@ test('a loop variable binds inside the loop', () => {
   );
 });
 
-test('assigning into a pattern is left alone, with a reason', () => {
-  const { code, warnings } = run(`let contact; ({ contact } = $user);`);
+test('assigning into a pattern flattens the same way', () => {
+  equal(
+    `let contact; ({ contact } = $user);`,
+    `let contact; contact = $user.a('contact');`
+  );
+  equal(
+    `let name; ({ contact: { name } } = $user);`,
+    `let name; name = $user.a('contact').a('name');`
+  );
+  equal(
+    `let first, second; [first, second] = $user.tags;`,
+    `let first, second; first = $user.a('tags').a('0'), second = $user.a('tags').a('1');`
+  );
+});
+
+test('an assignment pattern can target anything assignable', () => {
+  equal(
+    `const box: any = {}; ({ contact: box.c, tags: box.t } = $user);`,
+    `const box: any = {}; box.c = $user.a('contact'), box.t = $user.a('tags');`
+  );
+});
+
+test('a rest element in an assignment pattern still refuses', () => {
+  const { code, warnings } = run(
+    `let contact, rest; ({ contact, ...rest } = $user);`
+  );
+
+  assert.match(code, /\(\{ contact, \.\.\.rest \} = \$user\)/);
+  assert.match(warnings[0], /rest element/);
+});
+
+test('a pattern assigned mid-expression is left alone, with a reason', () => {
+  const { code, warnings } = run(`let contact; use(({ contact } = $user));`);
 
   assert.match(code, /\(\{ contact \} = \$user\)/);
-  assert.match(warnings[0], /destructure it with const/);
+  assert.match(warnings[0], /statement of its own/);
 });
 
 test('an any-typed $ name is reported rather than rewritten', () => {

@@ -7,6 +7,7 @@ $user.contact.name         // →  $user.a('contact').a('name')
 $user.tags[i]              // →  $user.a('tags').a('' + i)
 const { name } = $contact  // →  const name = $contact.a('name')
 const { name } = getUser() // →  const _c0 = getUser(), name = _c0.a('name')
+;({ name } = $contact)     // →  name = $contact.a('name')
 ({ name }) => name         // →  (_c0) => { const name = _c0.a('name'); return name; }
 ```
 
@@ -66,8 +67,7 @@ All five are the same call. Rollup has no `define` of its own — add `@rollup/p
 
 Warnings, not silent skips:
 
-- **A rest element** — `const { name, ...rest } = $user`. Only the proxy knew every key.
-- **Assigning into a pattern** — `({ name } = $user)`. Same reason; use a `const` pattern.
+- **A pattern assigned mid-expression** — `f(({ name } = $user))`. As an expression it answers with the right side; the bindings it would become don't. Give it a statement of its own.
 - **An `any`-typed `$` name** — nothing to check against.
 
 Everything else is skipped quietly, because the checker proved it isn't a control.
