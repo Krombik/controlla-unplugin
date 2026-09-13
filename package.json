@@ -1,6 +1,6 @@
 {
   "name": "controlla-unplugin",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Rewrites controlla's proxy-backed control scopes into direct calls at build time",
   "author": "Andrii Dubetskyi",
   "license": "MIT",
