@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import type ts from 'typescript';
 import { FLAG, rewrite } from './core.ts';
-import { findSourceFile, makeProgram } from './program.ts';
+import { findSourceFile, makePrograms } from './program.ts';
 
 /**
  * Metro has no `define`, and it does run over `node_modules` - so the flag is
@@ -37,19 +37,32 @@ const upstream = (() => {
   );
 })();
 
-let program: ts.Program | undefined;
+let programs: ts.Program[] | undefined;
+
+const missed = new Set<string>();
 
 const rewriteSource = (src: string, filename: string) => {
-  const file = findSourceFile(
-    (program ||= makeProgram(process.cwd())),
+  const found = findSourceFile(
+    (programs ||= makePrograms(process.cwd())),
     filename
   );
 
-  if (file === undefined) {
+  // the proxy this file would have leaned on is already gone
+  if (found === undefined) {
+    if (!missed.has(filename)) {
+      missed.add(filename);
+
+      console.warn(
+        `controlla-unplugin: ${filename} is in no project of the tsconfig, so nothing in it was rewritten`
+      );
+    }
+
     return src;
   }
 
-  const magic = rewrite(file, program.getTypeChecker(), (node, message) => {
+  const file = found.file;
+
+  const magic = rewrite(file, found.checker, (node, message) => {
     const { line, character } = file.getLineAndCharacterOfPosition(
       node.getStart(file)
     );

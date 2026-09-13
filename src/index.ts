@@ -1,7 +1,7 @@
 import { createUnplugin, type UnpluginFactory } from 'unplugin';
 import type ts from 'typescript';
 import { FLAG, rewrite } from './core.ts';
-import { findSourceFile, makeProgram } from './program.ts';
+import { findSourceFile, makePrograms } from './program.ts';
 
 export type Options = {
   /** Defaults to the nearest one above the project root. */
@@ -24,7 +24,10 @@ export const unpluginFactory: UnpluginFactory<Options | undefined> = (
 
   const exclude = options.exclude || DEFAULT_EXCLUDE;
 
-  let program: ts.Program | undefined;
+  let programs: ts.Program[] | undefined;
+
+  /** Said once per file, not once per access: a miss is the whole file. */
+  const missed = new Set<string>();
 
   return {
     name: 'controlla-unplugin',
@@ -36,16 +39,28 @@ export const unpluginFactory: UnpluginFactory<Options | undefined> = (
     // positions come from the program's own copy, so the text does too - this
     // runs at `pre`, before anything else has edited it
     transform(_code, id) {
-      const file = findSourceFile(
-        (program ||= makeProgram(process.cwd(), options.tsconfig)),
+      const found = findSourceFile(
+        (programs ||= makePrograms(process.cwd(), options.tsconfig)),
         id
       );
 
-      if (file === undefined) {
+      // the flag is already defined, so the proxy this file would have leaned
+      // on is gone - staying quiet here is how a scope reads `undefined`
+      if (found === undefined) {
+        if (!missed.has(id)) {
+          missed.add(id);
+
+          this.warn(
+            `${id} is in no project of the tsconfig, so nothing in it was rewritten - add it, or exclude it from this plugin`
+          );
+        }
+
         return null;
       }
 
-      const magic = rewrite(file, program.getTypeChecker(), (node, message) => {
+      const file = found.file;
+
+      const magic = rewrite(file, found.checker, (node, message) => {
         if (options.warn === false) {
           return;
         }
