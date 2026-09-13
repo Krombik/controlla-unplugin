@@ -18,6 +18,7 @@
   },
   "scripts": {
     "build": "tsdown",
+    "lint": "eslint . --max-warnings=0",
     "test": "node --test --experimental-transform-types --no-warnings \"tests/*.test.ts\"",
     "release": "tsdown && npm publish ./build"
   },
@@ -38,9 +39,11 @@
   },
   "devDependencies": {
     "@types/node": "^22.7.4",
+    "eslint": "^10.10.0",
     "prettier": "^3.9.5",
     "tsdown": "^0.22.8",
     "typescript": "^5.9.2",
+    "typescript-eslint": "8.64.0",
     "unrun": "^0.3.1"
   },
   "sideEffects": false

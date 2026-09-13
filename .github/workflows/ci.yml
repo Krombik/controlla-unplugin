@@ -26,6 +26,8 @@ jobs:
 
       - run: pnpm exec tsc --noEmit
 
+      - run: pnpm exec eslint . --max-warnings=0
+
       - run: pnpm exec prettier --check src tests
 
       - run: pnpm exec node --test --experimental-transform-types "tests/*.test.ts"

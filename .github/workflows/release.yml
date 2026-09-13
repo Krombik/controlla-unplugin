@@ -29,6 +29,8 @@ jobs:
 
       - run: pnpm exec tsc --noEmit
 
+      - run: pnpm exec eslint . --max-warnings=0
+
       - run: pnpm exec node --test --experimental-transform-types "tests/*.test.ts"
 
       # trusted publishing needs npm >= 11.5.1
